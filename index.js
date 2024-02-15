@@ -52,7 +52,7 @@ const mkDir = (path) => {
             mkDir(path);
         })
         console.log('保存文件列表...');
-        fs.writeFileSync(`dist/${bucket}/fileMaps.json`, JSON.stringify(fileMaps, null, 2));
+        fs.writeFileSync(`dist/fileMaps.json`, JSON.stringify(fileMaps, null, 2));
         console.log('尝试从先前的Page文件列表中获取文件...');
         const oldFileMaps = JSON.parse(request(PageUrl + '/fileMaps.json').body || "[]")
         console.log(`先前的Page文件列表中共有${oldFileMaps.length}个文件`);
