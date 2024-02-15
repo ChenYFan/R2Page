@@ -3,6 +3,7 @@ import fs from 'fs';
 import AWS from 'aws-sdk';
 import crypto from 'crypto';
 if (!fs.existsSync('dist')) fs.mkdirSync('dist');
+
 const PageUrl = process.env.PAGE_URL
 const decryptKey = process.env.DECRYPT_KEY
 //登录AWS，并列出所有的bucket
@@ -99,24 +100,43 @@ const downloadAsFile = (url, path) => {
             mkDir(path);
         })
         console.log('保存文件列表...');
+
         fs.writeFileSync(`dist/fileMaps.json`, encryptAsJson(fileMaps, decryptKey));
         console.log('尝试从先前的Page文件列表中获取文件...');
 
         const oldFileMaps = await downloadWithDecryptAsJson(`${PageUrl}/fileMaps.json`, decryptKey);
         console.log(`先前的Page文件列表中共有${oldFileMaps.length}个文件`);
-        fileMaps.forEach(async fileMap => {
+
+        fs.cpSync(`./node_modules/.astro`, `./FakeAstroCache`, { recursive: true, force: true });
+        fs.rmSync(`./node_modules/.astro`, { recursive: true, force: true });
+
+        const astroFiles = fs.readdirSync(`./FakeAstroCache`).length;
+        console.log(`伪装Astro缓存文件夹中共有${astroFiles}个文件`);
+
+        for (let fileMap of fileMaps) {
             const path = `dist/${fileMap.fullpath}`;
             if (oldFileMaps.find(oldFileMap => oldFileMap.fullpath === fileMap.fullpath && oldFileMap.time === fileMap.time)) {
-                console.log(`文件${fileMap.path}未发生变化，将异步从先前的Page文件列表中获取`);
-                await downloadAsFile(encodeURI(`${PageUrl}/${fileMap.fullpath}`), path);
-                console.log(`文件${fileMap.fullpath}下载完成`);
-                return;
+                console.log(`文件${fileMap.path}未发生变化，将尝试从Astro缓存中获取...`);
+                if (fs.existsSync(`./FakeAstroCache/${fileMap.fullpath}`)) {
+                    console.log(`文件${fileMap.fullpath}在Astro缓存中存在，将直接复制...`);
+                    fs.copyFileSync(`./FakeAstroCache/${fileMap.fullpath}`, path);
+                    console.log(`文件${fileMap.fullpath}复制完成`);
+                    return;
+                } else {
+                    console.log(`文件${fileMap.fullpath}在Astro缓存中不存在，将尝试下载...`);
+                    await downloadAsFile(encodeURI(`${PageUrl}/${fileMap.fullpath}`), path);
+                    console.log(`文件${fileMap.fullpath}下载完成`);
+                    return;
+                }
             }
             console.log(`文件${fileMap.fullpath}发生变化，开始下载...`);
             s3.getObject({ Bucket: bucket, Key: fileMap.path }).createReadStream().pipe(fs.createWriteStream(path));
             console.log(`文件${fileMap.fullpath}下载完成`);
-        })
+        }
         console.log(`文件列表${bucket}同步完成`);
     }
-    console.log('所有的文件列表同步完成，等待文件同步中...');
+    console.log('所有的文件同步完成，正在拷贝至Astro缓存...');
+    await fs.cpSync(`./dist`, `./node_modules/.astro`, { recursive: true, force: true });
+    console.log('拷贝完成，程序结束');
+    process.exit(0);
 })()

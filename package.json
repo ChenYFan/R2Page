@@ -5,11 +5,12 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "download": "node index.js"
+    "build": "node index.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "astro": "^0.23.0",
     "aws-sdk": "^2.1558.0",
     "request": "^2.88.2",
     "uuid": "^9.0.1"
