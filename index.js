@@ -3,7 +3,7 @@ import fs from 'fs';
 import AWS from 'aws-sdk';
 import crypto from 'crypto';
 if (!fs.existsSync('dist')) fs.mkdirSync('dist');
-
+const forceDownload = process.env.FORCE_DOWNLOAD === 'true';
 const PageUrl = process.env.PAGE_URL
 const decryptKey = process.env.DECRYPT_KEY
 //登录AWS，并列出所有的bucket
@@ -115,7 +115,7 @@ const downloadAsFile = (url, path) => {
 
         for (let fileMap of fileMaps) {
             const path = `dist/${fileMap.fullpath}`;
-            if (oldFileMaps.find(oldFileMap => oldFileMap.fullpath === fileMap.fullpath && oldFileMap.time === fileMap.time)) {
+            if (oldFileMaps.find(oldFileMap => oldFileMap.fullpath === fileMap.fullpath && oldFileMap.time === fileMap.time && !forceDownload)) {
                 console.log(`文件${fileMap.path}未发生变化，将尝试从Astro缓存中获取...`);
                 if (fs.existsSync(`./FakeAstroCache/${fileMap.fullpath}`)) {
                     console.log(`文件${fileMap.fullpath}在Astro缓存中存在，将直接复制...`);
@@ -126,11 +126,13 @@ const downloadAsFile = (url, path) => {
                     console.log(`文件${fileMap.fullpath}在Astro缓存中不存在，将尝试下载...`);
                     await downloadAsFile(encodeURI(`${PageUrl}/${fileMap.fullpath}`), path);
                     console.log(`文件${fileMap.fullpath}下载完成`);
-                    continue;   
+                    continue;
                 }
             }
             console.log(`文件${fileMap.fullpath}发生变化，开始下载...`);
-            s3.getObject({ Bucket: bucket, Key: fileMap.path }).createReadStream().pipe(fs.createWriteStream(path)).on('close', () => { });
+            await new Promise((resolve, reject) => {
+                s3.getObject({ Bucket: bucket, Key: fileMap.path }).createReadStream().pipe(fs.createWriteStream(path)).on('close', () => resolve());
+            })
             console.log(`文件${fileMap.fullpath}下载完成`);
         }
         console.log(`文件列表${bucket}同步完成`);
