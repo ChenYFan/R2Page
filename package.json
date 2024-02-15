@@ -10,6 +10,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "request": "^2.88.2"
+    "aws-sdk": "^2.1558.0",
+    "request": "^2.88.2",
+    "uuid": "^9.0.1"
   }
 }
