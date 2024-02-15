@@ -1,6 +1,6 @@
 # R2Page - 利用Page来分发R2的数据
 
-> Because CloudFlare Page does not have a limit on operands - **while R2 has**
+> Why? Because CloudFlare Page does not have a limit on operands - **while R2 has**
 
 ## 部署
 
