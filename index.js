@@ -106,7 +106,7 @@ const downloadAsFile = (url, path) => {
 
         const oldFileMaps = await downloadWithDecryptAsJson(`${PageUrl}/fileMaps.json`, decryptKey);
         console.log(`先前的Page文件列表中共有${oldFileMaps.length}个文件`);
-
+        if (!fs.existsSync(`./node_modules/.astro`)) fs.mkdirSync(`./node_modules/.astro`);
         fs.cpSync(`./node_modules/.astro`, `./FakeAstroCache`, { recursive: true, force: true });
         fs.rmSync(`./node_modules/.astro`, { recursive: true, force: true });
 
