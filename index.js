@@ -130,7 +130,7 @@ const downloadAsFile = (url, path) => {
                 }
             }
             console.log(`文件${fileMap.fullpath}发生变化，开始下载...`);
-            s3.getObject({ Bucket: bucket, Key: fileMap.path }).createReadStream().pipe(fs.createWriteStream(path));
+            s3.getObject({ Bucket: bucket, Key: fileMap.path }).createReadStream().pipe(fs.createWriteStream(path)).on('close', () => { });
             console.log(`文件${fileMap.fullpath}下载完成`);
         }
         console.log(`文件列表${bucket}同步完成`);
