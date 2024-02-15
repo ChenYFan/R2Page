@@ -1,8 +1,10 @@
 import request from 'request';
 import fs from 'fs';
 import AWS from 'aws-sdk';
+import crypto from 'crypto';
 if (!fs.existsSync('dist')) fs.mkdirSync('dist');
 const PageUrl = process.env.PAGE_URL
+const decryptKey = process.env.DECRYPT_KEY
 //登录AWS，并列出所有的bucket
 const s3 = new AWS.S3({
     region: 'auto',
@@ -22,8 +24,52 @@ const mkDir = (path) => {
     }
 }
 
+const downloadWithDecryptAsJson = (url, key) => {
+    return new Promise((resolve, reject) => {
+        request(url, (err, res, body) => {
+            if (err) resolve([]);
+            try {
+                if (!body) {
+                    console.log('下载失败，返回数据为空，视为无FileMap文件');
+                    resolve([]);
+                    return;
+                }
+                let data = body.toString();
+                if (!key) {
+                    console.log('未配置解密Key，将直接返回下载的数据');
+                    resolve(JSON.parse(data));
+                    return;
+                }
+                const decipher = crypto.createDecipher('aes192', key);
+                let decrypted = decipher.update(data, 'hex', 'utf8');
+                decrypted += decipher.final('utf8');
+                resolve(JSON.parse(decrypted, null, 4));
+            } catch (e) {
+                console.log(`下载解密失败，错误信息：${e.message}`);
+                resolve([]);
+            }
+        })
+    })
+}
+
+const encryptAsJson = (data, key) => {
+    if (!key) return JSON.stringify(data);
+    const cipher = crypto.createCipher('aes192', key);
+    let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return encrypted;
+}
+
+const downloadAsFile = (url, path) => {
+    return new Promise((resolve, reject) => {
+        request(url).pipe(fs.createWriteStream(path)).on('close', () => resolve());
+    })
+}
+
+
+
 !!(async () => {
-    console.log(`部分配置信息配置如下：\nPAGE_URL: ${PageUrl}\nAWS_ENDPOINT_URL: ${process.env.AWS_ENDPOINT_URL}`);
+    console.log(`部分配置信息配置如下：\nPAGE_URL: ${PageUrl}\nAWS_ENDPOINT_URL: ${process.env.AWS_ENDPOINT_URL}\n是否对FileMap进行解密: ${decryptKey ? '是' : '否'}`);
     console.log('开始从R2获取文件列表...');
 
     const buckets = (await s3.listBuckets().promise()).Buckets.map(bucket => bucket.Name);
@@ -43,6 +89,7 @@ const mkDir = (path) => {
                     "size": content.Size
                 })
             })
+            console.log(`当前查询结果：IsTruncated: ${IsTruncated}, NextContinuationToken: ${NextContinuationToken}`)
             if (IsTruncated) ({ Contents, IsTruncated, NextContinuationToken } = await s3.listObjectsV2({ Bucket: bucket, ContinuationToken: NextContinuationToken }).promise());
 
         } while (IsTruncated)
@@ -52,15 +99,16 @@ const mkDir = (path) => {
             mkDir(path);
         })
         console.log('保存文件列表...');
-        fs.writeFileSync(`dist/fileMaps.json`, JSON.stringify(fileMaps, null, 2));
+        fs.writeFileSync(`dist/fileMaps.json`, encryptAsJson(fileMaps, decryptKey));
         console.log('尝试从先前的Page文件列表中获取文件...');
-        const oldFileMaps = JSON.parse(request(PageUrl + '/fileMaps.json').body || "[]")
+
+        const oldFileMaps = await downloadWithDecryptAsJson(`${PageUrl}/fileMaps.json`, decryptKey);
         console.log(`先前的Page文件列表中共有${oldFileMaps.length}个文件`);
-        fileMaps.forEach(fileMap => {
+        fileMaps.forEach(async fileMap => {
             const path = `dist/${fileMap.fullpath}`;
             if (oldFileMaps.find(oldFileMap => oldFileMap.fullpath === fileMap.fullpath && oldFileMap.time === fileMap.time)) {
-                console.log(`文件${fileMap.path}未发生变化，将从先前的Page文件列表中获取`);
-                request(PageUrl + '/' + fileMap.fullpath).pipe(fs.createWriteStream(path));
+                console.log(`文件${fileMap.path}未发生变化，将异步从先前的Page文件列表中获取`);
+                await downloadAsFile(encodeURI(`${PageUrl}/${fileMap.fullpath}`), path);
                 console.log(`文件${fileMap.fullpath}下载完成`);
                 return;
             }
@@ -70,5 +118,5 @@ const mkDir = (path) => {
         })
         console.log(`文件列表${bucket}同步完成`);
     }
-    console.log('文件同步完成，PageCI将在稍后自动上传文件列表');
+    console.log('所有的文件列表同步完成，等待文件同步中...');
 })()
