@@ -121,12 +121,12 @@ const downloadAsFile = (url, path) => {
                     console.log(`文件${fileMap.fullpath}在Astro缓存中存在，将直接复制...`);
                     fs.copyFileSync(`./FakeAstroCache/${fileMap.fullpath}`, path);
                     console.log(`文件${fileMap.fullpath}复制完成`);
-                    return;
+                    continue;
                 } else {
                     console.log(`文件${fileMap.fullpath}在Astro缓存中不存在，将尝试下载...`);
                     await downloadAsFile(encodeURI(`${PageUrl}/${fileMap.fullpath}`), path);
                     console.log(`文件${fileMap.fullpath}下载完成`);
-                    return;
+                    continue;   
                 }
             }
             console.log(`文件${fileMap.fullpath}发生变化，开始下载...`);
